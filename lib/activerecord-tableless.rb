@@ -87,7 +87,17 @@ module ActiveRecord
       # Register a new column.
       def column(name, sql_type = nil, default = nil, null = true)
         if ActiveRecord::VERSION::STRING >= "4.2.0"
-          cast_type = "ActiveRecord::Type::#{sql_type.to_s.camelize}".constantize.new
+          if ActiveRecord::Type::constants.include? sql_type.to_s.camelize.to_sym
+            cast_type = "ActiveRecord::Type::#{sql_type.to_s.camelize}".constantize.new
+          elsif sql_type == :datetime
+            ActiveRecord::Type::DateTime.new
+          elsif sql_type == :array
+            ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Array.new(ActiveRecord::Type::String.new)
+          elsif ActiveRecord::ConnectionAdapters::PostgreSQL::OID::constants.include? sql_type.to_s.camelize.to_sym
+            cast_type = "ActiveRecord::ConnectionAdapters::PostgreSQL::OID::#{sql_type.to_s.camelize}".constantize.new
+          else
+            cast_type = ActiveRecord::Type::Value.new
+          end
           tableless_options[:columns] << ActiveRecord::ConnectionAdapters::Column.new(name.to_s, default, cast_type, sql_type.to_s, null)
         else
           tableless_options[:columns] << ActiveRecord::ConnectionAdapters::Column.new(name.to_s, default, sql_type.to_s, null)
