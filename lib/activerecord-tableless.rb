@@ -90,9 +90,9 @@ module ActiveRecord
           if ActiveRecord::Type::constants.include? sql_type.to_s.camelize.to_sym
             cast_type = "ActiveRecord::Type::#{sql_type.to_s.camelize}".constantize.new
           elsif sql_type == :datetime
-            ActiveRecord::Type::DateTime.new
+            cast_type = ActiveRecord::Type::DateTime.new
           elsif sql_type == :array
-            ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Array.new(ActiveRecord::Type::String.new)
+            cast_type = ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Array.new(ActiveRecord::Type::String.new)
           elsif ActiveRecord::ConnectionAdapters::PostgreSQL::OID::constants.include? sql_type.to_s.camelize.to_sym
             cast_type = "ActiveRecord::ConnectionAdapters::PostgreSQL::OID::#{sql_type.to_s.camelize}".constantize.new
           else
