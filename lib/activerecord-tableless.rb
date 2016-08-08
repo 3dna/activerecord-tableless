@@ -32,6 +32,44 @@ module ActiveRecord
     class NoDatabase < StandardError; end
     class Unsupported < StandardError; end
 
+    class ActiveRecordTypeFinder
+      # AR likey has a way to do this already
+      # but I'm unsure. This works for my use now, but makes
+      # some assumtions including the use of PostgreSQL.
+
+      def initialize(type)
+        @type = type
+      end
+
+      def constantize
+        send @type.to_s
+      end
+
+      private
+
+      def datetime
+        ActiveRecord::Type::DateTime.new
+      end
+
+      def array
+        ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Array.new(default)
+      end
+
+      def default
+        ActiveRecord::Type::Value.new
+      end
+
+      def method_missing(sql_type)
+        if ActiveRecord::Type::constants.include? sql_type.to_s.camelize.to_sym
+          "ActiveRecord::Type::#{sql_type.to_s.camelize}".constantize.new
+        elsif ActiveRecord::ConnectionAdapters::PostgreSQL::OID::constants.include? sql_type.to_s.camelize.to_sym
+          "ActiveRecord::ConnectionAdapters::PostgreSQL::OID::#{sql_type.to_s.camelize}".constantize.new
+        else
+          default
+        end
+      end
+    end
+
     def self.included( base ) #:nodoc:
       base.send :extend, ActsMethods
     end
@@ -86,22 +124,11 @@ module ActiveRecord
 
       # Register a new column.
       def column(name, sql_type = nil, default = nil, null = true)
+        options = [name.to_s, default, sql_type.to_s, null]
         if ActiveRecord::VERSION::STRING >= "4.2.0"
-          if ActiveRecord::Type::constants.include? sql_type.to_s.camelize.to_sym
-            cast_type = "ActiveRecord::Type::#{sql_type.to_s.camelize}".constantize.new
-          elsif sql_type == :datetime
-            cast_type = ActiveRecord::Type::DateTime.new
-          elsif sql_type == :array
-            cast_type = ActiveRecord::ConnectionAdapters::PostgreSQL::OID::Array.new(ActiveRecord::Type::String.new)
-          elsif ActiveRecord::ConnectionAdapters::PostgreSQL::OID::constants.include? sql_type.to_s.camelize.to_sym
-            cast_type = "ActiveRecord::ConnectionAdapters::PostgreSQL::OID::#{sql_type.to_s.camelize}".constantize.new
-          else
-            cast_type = ActiveRecord::Type::Value.new
-          end
-          tableless_options[:columns] << ActiveRecord::ConnectionAdapters::Column.new(name.to_s, default, cast_type, sql_type.to_s, null)
-        else
-          tableless_options[:columns] << ActiveRecord::ConnectionAdapters::Column.new(name.to_s, default, sql_type.to_s, null)
+          options.insert(2, ActiveRecordTypeFinder.new(sql_type).constantize)
         end
+        tableless_options[:columns] << ActiveRecord::ConnectionAdapters::Column.new(*options)
       end
 
       # Register a set of colums with the same SQL type
