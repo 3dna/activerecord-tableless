@@ -42,7 +42,8 @@ module ActiveRecord
       end
 
       def constantize
-        send @type.to_s
+        default
+        # send @type.to_s
       end
 
       private
